@@ -52,10 +52,13 @@ interface ActionGuide {
   aiHelp: string[];
 }
 
+type DashboardPage = "dashboard" | "inbox" | "action-guide" | "projects" | "knowledge-map" | "health";
+
 interface NavigationTarget {
   label: string;
   active?: boolean;
-  kind: "dashboard" | "folder" | "file" | "section" | "settings";
+  kind: "page" | "section" | "settings";
+  page?: DashboardPage;
   path?: string;
   sectionId?: string;
 }
@@ -124,6 +127,7 @@ export default class AiKnowledgeDashboardPlugin extends Plugin {
 
 class DashboardView extends ItemView {
   private plugin: AiKnowledgeDashboardPlugin;
+  private activePage: DashboardPage = "dashboard";
 
   constructor(leaf: WorkspaceLeaf, plugin: AiKnowledgeDashboardPlugin) {
     super(leaf);
@@ -168,14 +172,15 @@ class DashboardView extends ItemView {
 
     const nav = sidebar.createDiv({ cls: "akd-nav" });
     const targets: NavigationTarget[] = [
-      { label: "Dashboard", active: true, kind: "dashboard" },
-      { label: "Inbox", kind: "folder", path: this.plugin.settings.inboxFolder },
-      { label: "Action Guide", kind: "section", sectionId: "action-guide" },
-      { label: "Projects", kind: "folder", path: "raw/sources/301-项目" },
-      { label: "Knowledge Map", kind: "folder", path: this.plugin.settings.sourcesFolder },
-      { label: "Health", kind: "file", path: "wiki/HEALTH.md" }
+      { label: "Dashboard", kind: "page", page: "dashboard" },
+      { label: "Inbox", kind: "page", page: "inbox" },
+      { label: "Action Guide", kind: "page", page: "action-guide" },
+      { label: "Projects", kind: "page", page: "projects" },
+      { label: "Knowledge Map", kind: "page", page: "knowledge-map" },
+      { label: "Health", kind: "page", page: "health" }
     ];
     targets.forEach((target) => {
+      target.active = target.page === this.activePage;
       renderNavItem(nav, target, (selected) => {
         void this.handleNavigation(selected);
       });
@@ -199,12 +204,17 @@ class DashboardView extends ItemView {
     });
     const inboxButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
     inboxButton.addEventListener("click", () => {
-      void this.openFolderLanding(this.plugin.settings.inboxFolder);
+      void this.setActivePage("inbox");
     });
     const healthButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
     healthButton.addEventListener("click", () => {
-      void this.openPath("wiki/HEALTH.md");
+      void this.setActivePage("health");
     });
+
+    if (this.activePage !== "dashboard") {
+      this.renderSubPage(main, stats, guides);
+      return;
+    }
 
     const hero = main.createDiv({ cls: "akd-hero" });
     hero.createEl("span", { text: "PERSONAL AI KNOWLEDGE BASE" });
@@ -264,9 +274,9 @@ class DashboardView extends ItemView {
     const mentor = aside.createDiv({ cls: "akd-mentor-card" });
     mentor.createEl("h3", { text: "AI Task Queue" });
     const taskTargets: Record<string, () => void> = {
-      "整理 Inbox": () => void this.openFolderLanding(this.plugin.settings.inboxFolder),
-      "生成今日建议": () => this.scrollToSection("action-guide"),
-      "检查健康度": () => void this.openPath("wiki/HEALTH.md"),
+      "整理 Inbox": () => void this.setActivePage("inbox"),
+      "生成今日建议": () => void this.setActivePage("action-guide"),
+      "检查健康度": () => void this.setActivePage("health"),
       "编译 Wiki": () => new Notice("Wiki compile should still be run by your AI workflow for now.")
     };
 
@@ -280,8 +290,8 @@ class DashboardView extends ItemView {
   }
 
   private async handleNavigation(target: NavigationTarget): Promise<void> {
-    if (target.kind === "dashboard") {
-      this.containerEl.scrollTo({ top: 0, behavior: "smooth" });
+    if (target.kind === "page" && target.page) {
+      await this.setActivePage(target.page);
       return;
     }
 
@@ -295,14 +305,12 @@ class DashboardView extends ItemView {
       return;
     }
 
-    if (target.kind === "folder" && target.path) {
-      await this.openFolderLanding(target.path);
-      return;
-    }
+  }
 
-    if (target.kind === "file" && target.path) {
-      await this.openPath(target.path);
-    }
+  private async setActivePage(page: DashboardPage): Promise<void> {
+    this.activePage = page;
+    await this.render();
+    this.containerEl.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   private scrollToSection(sectionId: string): void {
@@ -353,6 +361,117 @@ class DashboardView extends ItemView {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
     this.app.workspace.revealLeaf(leaf);
+  }
+
+  private renderSubPage(main: HTMLElement, stats: KnowledgeStats, guides: ActionGuide[]): void {
+    if (this.activePage === "inbox") {
+      this.renderInboxPage(main);
+      return;
+    }
+
+    if (this.activePage === "action-guide") {
+      this.renderActionGuidePage(main, guides);
+      return;
+    }
+
+    if (this.activePage === "projects") {
+      this.renderProjectsPage(main);
+      return;
+    }
+
+    if (this.activePage === "knowledge-map") {
+      this.renderKnowledgeMapPage(main);
+      return;
+    }
+
+    this.renderHealthPage(main, stats);
+  }
+
+  private renderPageHeader(parent: HTMLElement, title: string, description: string): void {
+    const header = parent.createDiv({ cls: "akd-page-header" });
+    header.createEl("span", { text: "AI KNOWLEDGE DASHBOARD" });
+    header.createEl("h1", { text: title });
+    header.createEl("p", { text: description });
+  }
+
+  private renderInboxPage(parent: HTMLElement): void {
+    this.renderPageHeader(parent, "Inbox", "收集所有新想法、AI 对话、网页剪藏和草稿，后续再由 AI 或人工整理入 sources。");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    const files = listMarkdownFilesInFolder(this.app, this.plugin.settings.inboxFolder).slice(0, 12);
+
+    files.forEach((file) => {
+      renderFileCard(grid, file, "Captured note", () => void this.openFile(file));
+    });
+
+    if (files.length === 0) {
+      renderEmptyState(grid, "Inbox is empty", "raw/inbox 下暂时没有 Markdown 文件。");
+    }
+  }
+
+  private renderActionGuidePage(parent: HTMLElement, guides: ActionGuide[]): void {
+    this.renderPageHeader(parent, "Action Guide", "把目标变成下一步行动：为什么做、做什么、预计多久、AI 可以帮什么。");
+    const grid = parent.createDiv({ cls: "akd-guide-grid akd-guide-grid-wide" });
+    guides.forEach((guide) => renderActionGuide(grid, guide));
+  }
+
+  private renderProjectsPage(parent: HTMLElement): void {
+    this.renderPageHeader(parent, "Projects", "项目区用于承载能对外展示、能复盘、能形成作品集的实践。");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    const projectFolder = "raw/sources/301-项目";
+    const files = listMarkdownFilesInFolder(this.app, projectFolder).slice(0, 12);
+
+    files.forEach((file) => {
+      renderFileCard(grid, file, "Project note", () => void this.openFile(file));
+    });
+
+    if (files.length === 0) {
+      renderEmptyState(grid, "No project notes found", `${projectFolder} 下暂时没有 Markdown 文件。`);
+    }
+  }
+
+  private renderKnowledgeMapPage(parent: HTMLElement): void {
+    this.renderPageHeader(parent, "Knowledge Map", "按照 100/200/300 编号体系浏览知识源目录，让 AI 和人都能快速理解分类。");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    const folders = listFirstLevelFolders(this.app, this.plugin.settings.sourcesFolder);
+
+    folders.forEach((folder) => {
+      const card = grid.createDiv({ cls: "akd-map-card" });
+      card.createEl("h3", { text: folder.name });
+      card.createEl("p", { text: `${countMarkdownFiles(folder)} notes` });
+      const openButton = card.createEl("button", { text: "Open landing note" });
+      openButton.addEventListener("click", () => {
+        void this.openFolderLanding(folder.path);
+      });
+    });
+
+    if (folders.length === 0) {
+      renderEmptyState(grid, "No source folders found", `${this.plugin.settings.sourcesFolder} 下暂时没有一级分类目录。`);
+    }
+  }
+
+  private renderHealthPage(parent: HTMLElement, stats: KnowledgeStats): void {
+    this.renderPageHeader(parent, "Health", "查看知识库规模、wiki 状态和后续维护入口。");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+
+    [
+      ["Raw notes", String(stats.rawNotes)],
+      ["Sources", String(stats.sourceNotes)],
+      ["Wiki pages", String(stats.wikiNotes)],
+      ["Concepts", String(stats.conceptNotes)],
+      ["Inbox", String(stats.inboxNotes)]
+    ].forEach(([label, value]) => {
+      const card = grid.createDiv({ cls: "akd-health-card" });
+      card.createEl("strong", { text: value });
+      card.createEl("span", { text: label });
+    });
+
+    const healthFile = grid.createDiv({ cls: "akd-map-card" });
+    healthFile.createEl("h3", { text: "Wiki Health Report" });
+    healthFile.createEl("p", { text: "打开 wiki/HEALTH.md 查看最近一次健康检查。" });
+    const openButton = healthFile.createEl("button", { text: "Open Health Report" });
+    openButton.addEventListener("click", () => {
+      void this.openPath("wiki/HEALTH.md");
+    });
   }
 }
 
@@ -544,6 +663,52 @@ function findFolderLandingFile(folder: TFolder): TFile | null {
   }
 
   return null;
+}
+
+function listMarkdownFilesInFolder(app: App, folderPath: string): TFile[] {
+  const normalized = normalizePathSetting(folderPath, folderPath);
+  return app.vault
+    .getMarkdownFiles()
+    .filter((file) => file.path.startsWith(`${normalized}/`))
+    .sort((left, right) => left.path.localeCompare(right.path, "zh-Hans-CN"));
+}
+
+function listFirstLevelFolders(app: App, folderPath: string): TFolder[] {
+  const folder = app.vault.getAbstractFileByPath(normalizePathSetting(folderPath, folderPath));
+  if (!(folder instanceof TFolder)) {
+    return [];
+  }
+  return folder.children
+    .filter((child): child is TFolder => child instanceof TFolder)
+    .sort((left, right) => left.name.localeCompare(right.name, "zh-Hans-CN"));
+}
+
+function countMarkdownFiles(folder: TFolder): number {
+  let count = 0;
+  for (const child of folder.children) {
+    if (child instanceof TFile && child.extension === "md") {
+      count += 1;
+    }
+    if (child instanceof TFolder) {
+      count += countMarkdownFiles(child);
+    }
+  }
+  return count;
+}
+
+function renderFileCard(parent: HTMLElement, file: TFile, label: string, onOpen: () => void): void {
+  const card = parent.createDiv({ cls: "akd-map-card" });
+  card.createEl("span", { cls: "akd-pill", text: label });
+  card.createEl("h3", { text: file.basename });
+  card.createEl("p", { text: file.path });
+  const openButton = card.createEl("button", { text: "Open note" });
+  openButton.addEventListener("click", onOpen);
+}
+
+function renderEmptyState(parent: HTMLElement, title: string, description: string): void {
+  const card = parent.createDiv({ cls: "akd-map-card" });
+  card.createEl("h3", { text: title });
+  card.createEl("p", { text: description });
 }
 
 function renderNavItem(parent: HTMLElement, target: NavigationTarget, onClick: (target: NavigationTarget) => void): void {

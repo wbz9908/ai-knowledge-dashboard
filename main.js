@@ -90,6 +90,7 @@ var AiKnowledgeDashboardPlugin = class extends import_obsidian.Plugin {
 var DashboardView = class extends import_obsidian.ItemView {
   constructor(leaf, plugin) {
     super(leaf);
+    this.activePage = "dashboard";
     this.plugin = plugin;
   }
   getViewType() {
@@ -122,14 +123,15 @@ var DashboardView = class extends import_obsidian.ItemView {
     brand.createEl("strong", { text: "Knowledge OS" });
     const nav = sidebar.createDiv({ cls: "akd-nav" });
     const targets = [
-      { label: "Dashboard", active: true, kind: "dashboard" },
-      { label: "Inbox", kind: "folder", path: this.plugin.settings.inboxFolder },
-      { label: "Action Guide", kind: "section", sectionId: "action-guide" },
-      { label: "Projects", kind: "folder", path: "raw/sources/301-\u9879\u76EE" },
-      { label: "Knowledge Map", kind: "folder", path: this.plugin.settings.sourcesFolder },
-      { label: "Health", kind: "file", path: "wiki/HEALTH.md" }
+      { label: "Dashboard", kind: "page", page: "dashboard" },
+      { label: "Inbox", kind: "page", page: "inbox" },
+      { label: "Action Guide", kind: "page", page: "action-guide" },
+      { label: "Projects", kind: "page", page: "projects" },
+      { label: "Knowledge Map", kind: "page", page: "knowledge-map" },
+      { label: "Health", kind: "page", page: "health" }
     ];
     targets.forEach((target) => {
+      target.active = target.page === this.activePage;
       renderNavItem(nav, target, (selected) => {
         void this.handleNavigation(selected);
       });
@@ -150,12 +152,16 @@ var DashboardView = class extends import_obsidian.ItemView {
     });
     const inboxButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
     inboxButton.addEventListener("click", () => {
-      void this.openFolderLanding(this.plugin.settings.inboxFolder);
+      void this.setActivePage("inbox");
     });
     const healthButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
     healthButton.addEventListener("click", () => {
-      void this.openPath("wiki/HEALTH.md");
+      void this.setActivePage("health");
     });
+    if (this.activePage !== "dashboard") {
+      this.renderSubPage(main, stats, guides);
+      return;
+    }
     const hero = main.createDiv({ cls: "akd-hero" });
     hero.createEl("span", { text: "PERSONAL AI KNOWLEDGE BASE" });
     hero.createEl("h1", {
@@ -206,9 +212,9 @@ var DashboardView = class extends import_obsidian.ItemView {
     const mentor = aside.createDiv({ cls: "akd-mentor-card" });
     mentor.createEl("h3", { text: "AI Task Queue" });
     const taskTargets = {
-      "\u6574\u7406 Inbox": () => void this.openFolderLanding(this.plugin.settings.inboxFolder),
-      "\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE": () => this.scrollToSection("action-guide"),
-      "\u68C0\u67E5\u5065\u5EB7\u5EA6": () => void this.openPath("wiki/HEALTH.md"),
+      "\u6574\u7406 Inbox": () => void this.setActivePage("inbox"),
+      "\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE": () => void this.setActivePage("action-guide"),
+      "\u68C0\u67E5\u5065\u5EB7\u5EA6": () => void this.setActivePage("health"),
       "\u7F16\u8BD1 Wiki": () => new import_obsidian.Notice("Wiki compile should still be run by your AI workflow for now.")
     };
     ["\u6574\u7406 Inbox", "\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE", "\u68C0\u67E5\u5065\u5EB7\u5EA6", "\u7F16\u8BD1 Wiki"].forEach((task) => {
@@ -220,8 +226,8 @@ var DashboardView = class extends import_obsidian.ItemView {
     });
   }
   async handleNavigation(target) {
-    if (target.kind === "dashboard") {
-      this.containerEl.scrollTo({ top: 0, behavior: "smooth" });
+    if (target.kind === "page" && target.page) {
+      await this.setActivePage(target.page);
       return;
     }
     if (target.kind === "section" && target.sectionId) {
@@ -232,13 +238,11 @@ var DashboardView = class extends import_obsidian.ItemView {
       new import_obsidian.Notice("Open Settings -> Community plugins -> AI Knowledge Dashboard.");
       return;
     }
-    if (target.kind === "folder" && target.path) {
-      await this.openFolderLanding(target.path);
-      return;
-    }
-    if (target.kind === "file" && target.path) {
-      await this.openPath(target.path);
-    }
+  }
+  async setActivePage(page) {
+    this.activePage = page;
+    await this.render();
+    this.containerEl.scrollTo({ top: 0, behavior: "smooth" });
   }
   scrollToSection(sectionId) {
     const section = this.containerEl.querySelector(`#${sectionId}`);
@@ -279,6 +283,98 @@ var DashboardView = class extends import_obsidian.ItemView {
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.openFile(file);
     this.app.workspace.revealLeaf(leaf);
+  }
+  renderSubPage(main, stats, guides) {
+    if (this.activePage === "inbox") {
+      this.renderInboxPage(main);
+      return;
+    }
+    if (this.activePage === "action-guide") {
+      this.renderActionGuidePage(main, guides);
+      return;
+    }
+    if (this.activePage === "projects") {
+      this.renderProjectsPage(main);
+      return;
+    }
+    if (this.activePage === "knowledge-map") {
+      this.renderKnowledgeMapPage(main);
+      return;
+    }
+    this.renderHealthPage(main, stats);
+  }
+  renderPageHeader(parent, title, description) {
+    const header = parent.createDiv({ cls: "akd-page-header" });
+    header.createEl("span", { text: "AI KNOWLEDGE DASHBOARD" });
+    header.createEl("h1", { text: title });
+    header.createEl("p", { text: description });
+  }
+  renderInboxPage(parent) {
+    this.renderPageHeader(parent, "Inbox", "\u6536\u96C6\u6240\u6709\u65B0\u60F3\u6CD5\u3001AI \u5BF9\u8BDD\u3001\u7F51\u9875\u526A\u85CF\u548C\u8349\u7A3F\uFF0C\u540E\u7EED\u518D\u7531 AI \u6216\u4EBA\u5DE5\u6574\u7406\u5165 sources\u3002");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    const files = listMarkdownFilesInFolder(this.app, this.plugin.settings.inboxFolder).slice(0, 12);
+    files.forEach((file) => {
+      renderFileCard(grid, file, "Captured note", () => void this.openFile(file));
+    });
+    if (files.length === 0) {
+      renderEmptyState(grid, "Inbox is empty", "raw/inbox \u4E0B\u6682\u65F6\u6CA1\u6709 Markdown \u6587\u4EF6\u3002");
+    }
+  }
+  renderActionGuidePage(parent, guides) {
+    this.renderPageHeader(parent, "Action Guide", "\u628A\u76EE\u6807\u53D8\u6210\u4E0B\u4E00\u6B65\u884C\u52A8\uFF1A\u4E3A\u4EC0\u4E48\u505A\u3001\u505A\u4EC0\u4E48\u3001\u9884\u8BA1\u591A\u4E45\u3001AI \u53EF\u4EE5\u5E2E\u4EC0\u4E48\u3002");
+    const grid = parent.createDiv({ cls: "akd-guide-grid akd-guide-grid-wide" });
+    guides.forEach((guide) => renderActionGuide(grid, guide));
+  }
+  renderProjectsPage(parent) {
+    this.renderPageHeader(parent, "Projects", "\u9879\u76EE\u533A\u7528\u4E8E\u627F\u8F7D\u80FD\u5BF9\u5916\u5C55\u793A\u3001\u80FD\u590D\u76D8\u3001\u80FD\u5F62\u6210\u4F5C\u54C1\u96C6\u7684\u5B9E\u8DF5\u3002");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    const projectFolder = "raw/sources/301-\u9879\u76EE";
+    const files = listMarkdownFilesInFolder(this.app, projectFolder).slice(0, 12);
+    files.forEach((file) => {
+      renderFileCard(grid, file, "Project note", () => void this.openFile(file));
+    });
+    if (files.length === 0) {
+      renderEmptyState(grid, "No project notes found", `${projectFolder} \u4E0B\u6682\u65F6\u6CA1\u6709 Markdown \u6587\u4EF6\u3002`);
+    }
+  }
+  renderKnowledgeMapPage(parent) {
+    this.renderPageHeader(parent, "Knowledge Map", "\u6309\u7167 100/200/300 \u7F16\u53F7\u4F53\u7CFB\u6D4F\u89C8\u77E5\u8BC6\u6E90\u76EE\u5F55\uFF0C\u8BA9 AI \u548C\u4EBA\u90FD\u80FD\u5FEB\u901F\u7406\u89E3\u5206\u7C7B\u3002");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    const folders = listFirstLevelFolders(this.app, this.plugin.settings.sourcesFolder);
+    folders.forEach((folder) => {
+      const card = grid.createDiv({ cls: "akd-map-card" });
+      card.createEl("h3", { text: folder.name });
+      card.createEl("p", { text: `${countMarkdownFiles(folder)} notes` });
+      const openButton = card.createEl("button", { text: "Open landing note" });
+      openButton.addEventListener("click", () => {
+        void this.openFolderLanding(folder.path);
+      });
+    });
+    if (folders.length === 0) {
+      renderEmptyState(grid, "No source folders found", `${this.plugin.settings.sourcesFolder} \u4E0B\u6682\u65F6\u6CA1\u6709\u4E00\u7EA7\u5206\u7C7B\u76EE\u5F55\u3002`);
+    }
+  }
+  renderHealthPage(parent, stats) {
+    this.renderPageHeader(parent, "Health", "\u67E5\u770B\u77E5\u8BC6\u5E93\u89C4\u6A21\u3001wiki \u72B6\u6001\u548C\u540E\u7EED\u7EF4\u62A4\u5165\u53E3\u3002");
+    const grid = parent.createDiv({ cls: "akd-page-grid" });
+    [
+      ["Raw notes", String(stats.rawNotes)],
+      ["Sources", String(stats.sourceNotes)],
+      ["Wiki pages", String(stats.wikiNotes)],
+      ["Concepts", String(stats.conceptNotes)],
+      ["Inbox", String(stats.inboxNotes)]
+    ].forEach(([label, value]) => {
+      const card = grid.createDiv({ cls: "akd-health-card" });
+      card.createEl("strong", { text: value });
+      card.createEl("span", { text: label });
+    });
+    const healthFile = grid.createDiv({ cls: "akd-map-card" });
+    healthFile.createEl("h3", { text: "Wiki Health Report" });
+    healthFile.createEl("p", { text: "\u6253\u5F00 wiki/HEALTH.md \u67E5\u770B\u6700\u8FD1\u4E00\u6B21\u5065\u5EB7\u68C0\u67E5\u3002" });
+    const openButton = healthFile.createEl("button", { text: "Open Health Report" });
+    openButton.addEventListener("click", () => {
+      void this.openPath("wiki/HEALTH.md");
+    });
   }
 };
 var DashboardSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -414,6 +510,42 @@ function findFolderLandingFile(folder) {
     }
   }
   return null;
+}
+function listMarkdownFilesInFolder(app, folderPath) {
+  const normalized = normalizePathSetting(folderPath, folderPath);
+  return app.vault.getMarkdownFiles().filter((file) => file.path.startsWith(`${normalized}/`)).sort((left, right) => left.path.localeCompare(right.path, "zh-Hans-CN"));
+}
+function listFirstLevelFolders(app, folderPath) {
+  const folder = app.vault.getAbstractFileByPath(normalizePathSetting(folderPath, folderPath));
+  if (!(folder instanceof import_obsidian.TFolder)) {
+    return [];
+  }
+  return folder.children.filter((child) => child instanceof import_obsidian.TFolder).sort((left, right) => left.name.localeCompare(right.name, "zh-Hans-CN"));
+}
+function countMarkdownFiles(folder) {
+  let count = 0;
+  for (const child of folder.children) {
+    if (child instanceof import_obsidian.TFile && child.extension === "md") {
+      count += 1;
+    }
+    if (child instanceof import_obsidian.TFolder) {
+      count += countMarkdownFiles(child);
+    }
+  }
+  return count;
+}
+function renderFileCard(parent, file, label, onOpen) {
+  const card = parent.createDiv({ cls: "akd-map-card" });
+  card.createEl("span", { cls: "akd-pill", text: label });
+  card.createEl("h3", { text: file.basename });
+  card.createEl("p", { text: file.path });
+  const openButton = card.createEl("button", { text: "Open note" });
+  openButton.addEventListener("click", onOpen);
+}
+function renderEmptyState(parent, title, description) {
+  const card = parent.createDiv({ cls: "akd-map-card" });
+  card.createEl("h3", { text: title });
+  card.createEl("p", { text: description });
 }
 function renderNavItem(parent, target, onClick) {
   const button = parent.createEl("button", {

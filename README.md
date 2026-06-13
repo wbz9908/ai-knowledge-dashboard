@@ -100,10 +100,16 @@ Current layout:
 
 Navigation status:
 
-- Sidebar and top buttons now open the configured folder landing page when possible.
-- Folder buttons prefer `README.md`, `index.md`, `00-*`, `01-*`, then the first Markdown file.
-- Section buttons, such as Action Guide, scroll within the dashboard.
+- Sidebar buttons switch between internal dashboard pages instead of leaving the UI and opening plain Markdown files.
+- Inbox, Action Guide, Projects, Knowledge Map, and Health all stay inside the dashboard shell.
+- Cards can still open related Markdown notes when the user explicitly clicks an open action.
 - Workflow buttons are still lightweight shortcuts. Long-running AI workflows are intentionally not executed directly by the plugin yet.
+
+Startup model:
+
+- This plugin owns the startup dashboard view through its `Open on startup` setting.
+- If the separate Homepage plugin is installed, its old Markdown homepage startup should be disabled to avoid layout conflicts.
+- The dashboard layout is responsive and should adapt when Obsidian sidebars, Claudian, or file explorers are open.
 
 ## Action Guide
 
