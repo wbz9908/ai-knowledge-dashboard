@@ -18,13 +18,19 @@ npm install
 npm run build
 ```
 
-For local testing, copy the built files to an Obsidian vault:
+For local testing in the current workstation:
 
-```text
-<vault>/.obsidian/plugins/ai-knowledge-dashboard/
+```bash
+npm run install:notes
 ```
 
-Required files:
+This copies the required plugin files to:
+
+```text
+C:\develop\notes\.obsidian\plugins\ai-knowledge-dashboard\
+```
+
+Required runtime files:
 
 - `manifest.json`
 - `main.js`

@@ -1,0 +1,297 @@
+/* AI Knowledge Dashboard */
+var __defProp = Object.defineProperty;
+var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
+var __getOwnPropNames = Object.getOwnPropertyNames;
+var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, { get: all[name], enumerable: true });
+};
+var __copyProps = (to, from, except, desc) => {
+  if (from && typeof from === "object" || typeof from === "function") {
+    for (let key of __getOwnPropNames(from))
+      if (!__hasOwnProp.call(to, key) && key !== except)
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
+  }
+  return to;
+};
+var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// src/main.ts
+var main_exports = {};
+__export(main_exports, {
+  default: () => AiKnowledgeDashboardPlugin
+});
+module.exports = __toCommonJS(main_exports);
+var import_obsidian = require("obsidian");
+var DASHBOARD_VIEW_TYPE = "ai-knowledge-dashboard-view";
+var DEFAULT_SETTINGS = {
+  openOnStartup: true,
+  showPersonalStatus: true,
+  actionLimit: 4
+};
+var AiKnowledgeDashboardPlugin = class extends import_obsidian.Plugin {
+  constructor() {
+    super(...arguments);
+    this.settings = DEFAULT_SETTINGS;
+  }
+  async onload() {
+    await this.loadSettings();
+    this.registerView(
+      DASHBOARD_VIEW_TYPE,
+      (leaf) => new DashboardView(leaf, this)
+    );
+    this.addRibbonIcon("sparkles", "Open AI Knowledge Dashboard", () => {
+      void this.activateDashboardView();
+    });
+    this.addCommand({
+      id: "open-ai-knowledge-dashboard",
+      name: "Open AI Knowledge Dashboard",
+      callback: () => {
+        void this.activateDashboardView();
+      }
+    });
+    this.addSettingTab(new DashboardSettingTab(this.app, this));
+    if (this.settings.openOnStartup) {
+      this.app.workspace.onLayoutReady(() => {
+        void this.activateDashboardView();
+      });
+    }
+  }
+  onunload() {
+    this.app.workspace.detachLeavesOfType(DASHBOARD_VIEW_TYPE);
+  }
+  async activateDashboardView() {
+    const leaves = this.app.workspace.getLeavesOfType(DASHBOARD_VIEW_TYPE);
+    const existingLeaf = leaves[0];
+    if (existingLeaf) {
+      this.app.workspace.revealLeaf(existingLeaf);
+      return;
+    }
+    const leaf = this.app.workspace.getLeaf(true);
+    await leaf.setViewState({
+      type: DASHBOARD_VIEW_TYPE,
+      active: true
+    });
+    this.app.workspace.revealLeaf(leaf);
+  }
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+  }
+  async saveSettings() {
+    await this.saveData(this.settings);
+  }
+};
+var DashboardView = class extends import_obsidian.ItemView {
+  constructor(leaf, plugin) {
+    super(leaf);
+    this.plugin = plugin;
+  }
+  getViewType() {
+    return DASHBOARD_VIEW_TYPE;
+  }
+  getDisplayText() {
+    return "AI Knowledge Dashboard";
+  }
+  getIcon() {
+    return "sparkles";
+  }
+  async onOpen() {
+    await this.render();
+  }
+  async render() {
+    const container = this.containerEl.children[1];
+    container.empty();
+    container.addClass("akd-view");
+    const stats = await collectKnowledgeStats(this.app);
+    const actionGuides = buildActionGuides();
+    const shell = container.createDiv({ cls: "akd-shell" });
+    this.renderSidebar(shell);
+    this.renderMain(shell, stats, actionGuides);
+    this.renderAside(shell, stats);
+  }
+  renderSidebar(parent) {
+    const sidebar = parent.createEl("aside", { cls: "akd-sidebar" });
+    const brand = sidebar.createDiv({ cls: "akd-brand" });
+    brand.createDiv({ cls: "akd-logo", text: "AI" });
+    brand.createEl("strong", { text: "Knowledge OS" });
+    const nav = sidebar.createDiv({ cls: "akd-nav" });
+    renderNavItem(nav, "Dashboard", true);
+    renderNavItem(nav, "Inbox", false);
+    renderNavItem(nav, "Action Guide", false);
+    renderNavItem(nav, "Projects", false);
+    renderNavItem(nav, "Knowledge Map", false);
+    renderNavItem(nav, "Health", false);
+    const footer = sidebar.createDiv({ cls: "akd-sidebar-footer" });
+    footer.createEl("span", { text: "Settings" });
+    footer.createEl("span", { text: "Local plugin scaffold" });
+  }
+  renderMain(parent, stats, guides) {
+    const main = parent.createEl("main", { cls: "akd-main" });
+    const topbar = main.createDiv({ cls: "akd-topbar" });
+    topbar.createEl("input", {
+      cls: "akd-search",
+      attr: { placeholder: "Search your notes, projects, ideas..." }
+    });
+    topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
+    topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
+    const hero = main.createDiv({ cls: "akd-hero" });
+    hero.createEl("span", { text: "PERSONAL AI KNOWLEDGE BASE" });
+    hero.createEl("h1", {
+      text: "Build a self-growing knowledge system with AI"
+    });
+    hero.createEl("p", {
+      text: "\u4ECA\u5929\u53EA\u770B\u4E09\u4EF6\u4E8B\uFF1A\u8BE5\u505A\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u505A\u3001AI \u80FD\u5E2E\u6211\u7EF4\u62A4\u4EC0\u4E48\u3002"
+    });
+    hero.createEl("button", { text: "Start Today" });
+    const cards = main.createDiv({ cls: "akd-progress-cards" });
+    renderProgressCard(cards, "AI \u77E5\u8BC6\u5E93", "62%", "\u81EA\u751F\u957F\u5DE5\u4F5C\u53F0");
+    renderProgressCard(cards, "\u4E00\u4EBA\u516C\u53F8", "38%", "\u4E3B\u4E1A\u7A33\u4F4F + \u526F\u4E1A\u63A2\u7D22");
+    renderProgressCard(cards, "bz-lottery", "54%", "AI \u9879\u76EE\u4F5C\u54C1\u96C6");
+    const sectionTitle = main.createDiv({ cls: "akd-section-title" });
+    sectionTitle.createEl("h2", { text: "Action Guide" });
+    sectionTitle.createEl("a", { text: "See all" });
+    const guideGrid = main.createDiv({ cls: "akd-guide-grid" });
+    guides.slice(0, this.plugin.settings.actionLimit).forEach((guide) => {
+      renderActionGuide(guideGrid, guide);
+    });
+    const table = main.createDiv({ cls: "akd-lessons" });
+    const tableHead = table.createDiv({ cls: "akd-table-row akd-table-head" });
+    ["Focus", "Status", "Next Action", "Metric"].forEach((item) => {
+      tableHead.createEl("span", { text: item });
+    });
+    renderTableRow(table, "Inbox", "Clear", "Keep collecting", `${stats.inboxNotes} files`);
+    renderTableRow(table, "Wiki", "Needs compile", "Run incremental compile later", `${stats.wikiNotes} pages`);
+    renderTableRow(table, "Projects", "Active", "Package bz-lottery", "1 priority");
+  }
+  renderAside(parent, stats) {
+    const aside = parent.createEl("aside", { cls: "akd-aside" });
+    const profile = aside.createDiv({ cls: "akd-stat-card" });
+    profile.createEl("span", { cls: "akd-kicker", text: "Statistic" });
+    profile.createDiv({ cls: "akd-ring", text: "32%" });
+    profile.createEl("h2", { text: "Good Morning" });
+    profile.createEl("p", { text: "Continue building your personal AI system." });
+    const statsGrid = aside.createDiv({ cls: "akd-mini-stats" });
+    renderMiniStat(statsGrid, String(stats.rawNotes), "Raw notes");
+    renderMiniStat(statsGrid, String(stats.wikiNotes), "Wiki pages");
+    renderMiniStat(statsGrid, String(stats.conceptNotes), "Concepts");
+    renderMiniStat(statsGrid, String(stats.inboxNotes), "Inbox");
+    const mentor = aside.createDiv({ cls: "akd-mentor-card" });
+    mentor.createEl("h3", { text: "AI Task Queue" });
+    ["\u6574\u7406 Inbox", "\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE", "\u68C0\u67E5\u5065\u5EB7\u5EA6", "\u7F16\u8BD1 Wiki"].forEach((task) => {
+      const item = mentor.createDiv({ cls: "akd-mentor-item" });
+      item.createDiv({ cls: "akd-avatar", text: "AI" });
+      item.createEl("span", { text: task });
+      item.createEl("button", { text: "Run" });
+    });
+  }
+};
+var DashboardSettingTab = class extends import_obsidian.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    containerEl.createEl("h2", { text: "AI Knowledge Dashboard" });
+    new import_obsidian.Setting(containerEl).setName("Open on startup").setDesc("Automatically open the dashboard when Obsidian starts.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.openOnStartup).onChange(async (value) => {
+        this.plugin.settings.openOnStartup = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Show personal status").setDesc("Only show status counts. The plugin should not read personal details.").addToggle((toggle) => {
+      toggle.setValue(this.plugin.settings.showPersonalStatus).onChange(async (value) => {
+        this.plugin.settings.showPersonalStatus = value;
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Action guide limit").setDesc("Number of action guide cards shown on the dashboard.").addSlider((slider) => {
+      slider.setLimits(2, 6, 1).setValue(this.plugin.settings.actionLimit).setDynamicTooltip().onChange(async (value) => {
+        this.plugin.settings.actionLimit = value;
+        await this.plugin.saveSettings();
+      });
+    });
+  }
+};
+async function collectKnowledgeStats(app) {
+  const files = app.vault.getMarkdownFiles();
+  return {
+    rawNotes: files.filter((file) => file.path.startsWith("raw/")).length,
+    wikiNotes: files.filter((file) => file.path.startsWith("wiki/")).length,
+    conceptNotes: files.filter((file) => file.path.startsWith("wiki/concepts/")).length,
+    inboxNotes: files.filter((file) => file.path.startsWith("raw/00-inbox/")).length
+  };
+}
+function buildActionGuides() {
+  return [
+    {
+      goal: "\u5E7F\u5DDE\u4E1C\u9644\u8FD1\u6C42\u804C",
+      status: "\u5DF2\u6709 AI \u9879\u76EE\u3001\u90E8\u7F72\u7ECF\u9A8C\u548C\u77E5\u8BC6\u5E93\u6C89\u6DC0\u3002",
+      nextAction: "\u628A bz-lottery \u6539\u5199\u6210 AI \u5F00\u53D1\u7ECF\u9A8C\u9879\u76EE\u3002",
+      reason: "\u56FD\u5185\u62DB\u8058\u6B63\u5728\u91CD\u89C6 AI \u5F00\u53D1\u7ECF\u9A8C\u3002",
+      estimate: "30-45 \u5206\u949F",
+      relatedNotes: ["\u7B80\u5386", "bz-lottery", "\u4E00\u4EBA\u516C\u53F8\u8DEF\u7EBF"],
+      aiHelp: ["\u751F\u6210\u9879\u76EE\u63CF\u8FF0", "\u63D0\u70BC STAR", "\u68C0\u67E5\u7B80\u5386\u8868\u8FBE"]
+    },
+    {
+      goal: "bz-lottery \u9879\u76EE\u5305\u88C5",
+      status: "\u5DF2\u5B8C\u6210\u524D\u7AEF\u4F18\u5316\u3001CI/CD\u3001ECS \u53D1\u5E03\u548C\u6392\u969C\u8BB0\u5F55\u3002",
+      nextAction: "\u6574\u7406\u4E00\u7BC7\u53EF\u653E\u8FDB\u7B80\u5386\u548C\u9762\u8BD5\u8868\u8FBE\u7684\u9879\u76EE\u590D\u76D8\u3002",
+      reason: "\u8FD9\u662F\u6700\u63A5\u8FD1 AI \u7F16\u7A0B\u4EA4\u4ED8\u80FD\u529B\u7684\u4E2A\u4EBA\u9879\u76EE\u3002",
+      estimate: "45 \u5206\u949F",
+      relatedNotes: ["\u9879\u76EE\u590D\u76D8", "CI/CD", "\u90E8\u7F72\u8E29\u5751"],
+      aiHelp: ["\u62BD\u53D6\u4EAE\u70B9", "\u751F\u6210\u9762\u8BD5\u95EE\u7B54", "\u8865\u9F50\u6280\u672F\u94FE\u8DEF"]
+    },
+    {
+      goal: "\u4E2A\u4EBA AI \u77E5\u8BC6\u5E93\u81EA\u751F\u957F",
+      status: "\u5DF2\u6709 raw/wiki\u3001\u5065\u5EB7\u68C0\u67E5\u3001\u641C\u7D22\u7D22\u5F15\u548C\u5DE5\u4F5C\u53F0\u3002",
+      nextAction: "\u628A Dashboard \u63D2\u4EF6\u505A\u6210\u53EF\u957F\u671F\u4F7F\u7528\u7684\u5165\u53E3\u3002",
+      reason: "\u6BCF\u5929\u6253\u5F00\u540E\u80FD\u76F4\u63A5\u83B7\u5F97\u884C\u52A8\u5EFA\u8BAE\u548C\u7EF4\u62A4\u5165\u53E3\u3002",
+      estimate: "60 \u5206\u949F",
+      relatedNotes: ["\u81EA\u751F\u957F\u77E5\u8BC6\u5E93\u8BBE\u8BA1", "\u77E5\u8BC6\u5E93\u5065\u5EB7\u62A5\u544A"],
+      aiHelp: ["\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE", "\u68C0\u67E5\u8FC7\u671F\u7B14\u8BB0", "\u89C4\u5212\u4E0B\u4E00\u6B65"]
+    },
+    {
+      goal: "AI \u4E00\u4EBA\u516C\u53F8\u8DEF\u7EBF",
+      status: "\u65B9\u5411\u5DF2\u786E\u5B9A\uFF1A\u4E3B\u4E1A\u7A33\u4F4F\uFF0C\u526F\u4E1A\u6162\u6162\u8DD1\u901A\u3002",
+      nextAction: "\u62C6\u51FA AI \u7F16\u7A0B\u4EA4\u4ED8\u548C AI \u6F2B\u5267\u4E24\u4E2A\u5B9E\u9A8C\u9879\u76EE\u3002",
+      reason: "\u907F\u514D\u53EA\u505C\u7559\u5728\u60F3\u6CD5\uFF0C\u9700\u8981\u53D8\u6210\u53EF\u6267\u884C\u6E05\u5355\u3002",
+      estimate: "30 \u5206\u949F",
+      relatedNotes: ["\u4E00\u4EBA\u516C\u53F8\u8DEF\u7EBF\u56FE", "AI \u6F2B\u5267", "\u63A5\u5355\u4EA4\u4ED8"],
+      aiHelp: ["\u62C6\u4EFB\u52A1", "\u8BC4\u4F30\u98CE\u9669", "\u751F\u6210 MVP \u8BA1\u5212"]
+    }
+  ];
+}
+function renderNavItem(parent, label, active) {
+  parent.createEl("button", {
+    cls: active ? "akd-nav-item is-active" : "akd-nav-item",
+    text: label
+  });
+}
+function renderProgressCard(parent, title, progress, subtitle) {
+  const card = parent.createDiv({ cls: "akd-progress-card" });
+  card.createEl("strong", { text: progress });
+  card.createEl("span", { text: title });
+  card.createEl("small", { text: subtitle });
+}
+function renderActionGuide(parent, guide) {
+  const card = parent.createDiv({ cls: "akd-guide-card" });
+  card.createEl("span", { cls: "akd-pill", text: guide.estimate });
+  card.createEl("h3", { text: guide.goal });
+  card.createEl("p", { text: guide.status });
+  card.createEl("strong", { text: guide.nextAction });
+  card.createEl("small", { text: guide.reason });
+  const tags = card.createDiv({ cls: "akd-tags" });
+  guide.relatedNotes.forEach((note) => tags.createEl("span", { text: note }));
+}
+function renderTableRow(parent, focus, status, action, metric) {
+  const row = parent.createDiv({ cls: "akd-table-row" });
+  [focus, status, action, metric].forEach((item) => row.createEl("span", { text: item }));
+}
+function renderMiniStat(parent, value, label) {
+  const item = parent.createDiv({ cls: "akd-mini-stat" });
+  item.createEl("strong", { text: value });
+  item.createEl("span", { text: label });
+}
