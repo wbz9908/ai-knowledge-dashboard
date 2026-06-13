@@ -28,7 +28,12 @@ var DASHBOARD_VIEW_TYPE = "ai-knowledge-dashboard-view";
 var DEFAULT_SETTINGS = {
   openOnStartup: true,
   showPersonalStatus: true,
-  actionLimit: 4
+  actionLimit: 4,
+  inboxFolder: "raw/inbox",
+  sourcesFolder: "raw/sources",
+  assetsFolder: "raw/assets",
+  wikiFolder: "wiki",
+  conceptsFolder: "wiki/concepts"
 };
 var AiKnowledgeDashboardPlugin = class extends import_obsidian.Plugin {
   constructor() {
@@ -103,7 +108,7 @@ var DashboardView = class extends import_obsidian.ItemView {
     const container = this.containerEl.children[1];
     container.empty();
     container.addClass("akd-view");
-    const stats = await collectKnowledgeStats(this.app);
+    const stats = await collectKnowledgeStats(this.app, this.plugin.settings);
     const actionGuides = buildActionGuides();
     const shell = container.createDiv({ cls: "akd-shell" });
     this.renderSidebar(shell);
@@ -173,8 +178,8 @@ var DashboardView = class extends import_obsidian.ItemView {
     profile.createEl("p", { text: "Continue building your personal AI system." });
     const statsGrid = aside.createDiv({ cls: "akd-mini-stats" });
     renderMiniStat(statsGrid, String(stats.rawNotes), "Raw notes");
+    renderMiniStat(statsGrid, String(stats.sourceNotes), "Sources");
     renderMiniStat(statsGrid, String(stats.wikiNotes), "Wiki pages");
-    renderMiniStat(statsGrid, String(stats.conceptNotes), "Concepts");
     renderMiniStat(statsGrid, String(stats.inboxNotes), "Inbox");
     const mentor = aside.createDiv({ cls: "akd-mentor-card" });
     mentor.createEl("h3", { text: "AI Task Queue" });
@@ -213,16 +218,53 @@ var DashboardSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       });
     });
+    new import_obsidian.Setting(containerEl).setName("Inbox folder").setDesc("Folder used for collected notes. Default fits the reorganized Karpathy-style vault.").addText((text) => {
+      text.setPlaceholder("raw/inbox").setValue(this.plugin.settings.inboxFolder).onChange(async (value) => {
+        this.plugin.settings.inboxFolder = normalizePathSetting(value, DEFAULT_SETTINGS.inboxFolder);
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Sources folder").setDesc("Folder used for source notes and long-term learning material.").addText((text) => {
+      text.setPlaceholder("raw/sources").setValue(this.plugin.settings.sourcesFolder).onChange(async (value) => {
+        this.plugin.settings.sourcesFolder = normalizePathSetting(value, DEFAULT_SETTINGS.sourcesFolder);
+        await this.plugin.saveSettings();
+      });
+    });
+    new import_obsidian.Setting(containerEl).setName("Wiki folder").setDesc("Folder used for compiled knowledge pages.").addText((text) => {
+      text.setPlaceholder("wiki").setValue(this.plugin.settings.wikiFolder).onChange(async (value) => {
+        this.plugin.settings.wikiFolder = normalizePathSetting(value, DEFAULT_SETTINGS.wikiFolder);
+        await this.plugin.saveSettings();
+      });
+    });
   }
 };
-async function collectKnowledgeStats(app) {
+async function collectKnowledgeStats(app, settings) {
   const files = app.vault.getMarkdownFiles();
+  const inboxFolder = resolveExistingFolderPath(app, settings.inboxFolder, ["raw/00-inbox"]);
+  const sourcesFolder = resolveExistingFolderPath(app, settings.sourcesFolder, ["raw/sources"]);
+  const assetsFolder = normalizePathSetting(settings.assetsFolder, DEFAULT_SETTINGS.assetsFolder);
+  const wikiFolder = resolveExistingFolderPath(app, settings.wikiFolder, ["wiki"]);
+  const conceptsFolder = resolveExistingFolderPath(app, settings.conceptsFolder, ["wiki/concepts"]);
   return {
-    rawNotes: files.filter((file) => file.path.startsWith("raw/")).length,
-    wikiNotes: files.filter((file) => file.path.startsWith("wiki/")).length,
-    conceptNotes: files.filter((file) => file.path.startsWith("wiki/concepts/")).length,
-    inboxNotes: files.filter((file) => file.path.startsWith("raw/00-inbox/")).length
+    rawNotes: files.filter((file) => isInsideFolder(file, "raw") && !isInsideFolder(file, assetsFolder)).length,
+    sourceNotes: files.filter((file) => isInsideFolder(file, sourcesFolder)).length,
+    wikiNotes: files.filter((file) => isInsideFolder(file, wikiFolder)).length,
+    conceptNotes: files.filter((file) => isInsideFolder(file, conceptsFolder)).length,
+    inboxNotes: files.filter((file) => isInsideFolder(file, inboxFolder)).length
   };
+}
+function normalizePathSetting(value, fallback) {
+  const normalized = value.trim().replace(/\\/g, "/").replace(/^\/+|\/+$/g, "");
+  return normalized.length > 0 ? normalized : fallback;
+}
+function resolveExistingFolderPath(app, preferred, fallbacks) {
+  const candidates = [preferred, ...fallbacks].map((path) => normalizePathSetting(path, preferred));
+  const existing = candidates.find((path) => app.vault.getAbstractFileByPath(path));
+  return existing != null ? existing : candidates[0];
+}
+function isInsideFolder(file, folder) {
+  const normalized = normalizePathSetting(folder, folder);
+  return file.path === normalized || file.path.startsWith(`${normalized}/`);
 }
 function buildActionGuides() {
   return [

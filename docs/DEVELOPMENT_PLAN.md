@@ -60,17 +60,17 @@
 
 数据来源：
 
-- `raw/00-inbox/02-最近整理摘要.md`
+- `raw/inbox/`
+- `raw/sources/`
 - `wiki/HEALTH.md`
-- `raw/10-ai/projects/个人AI知识库/01-自生长知识库设计.md`
-- `raw/10-ai/business/02-一人公司路线图.md`
-- `raw/06-projects/` 或项目相关目录
+- 根目录行动类笔记，如 `一人公司路线图.md`、`项目交付SOP.md`
+- 后续可从项目元数据或 Action Guide 配置中读取目标和下一步行动
 
 第一版读取策略：
 
 - 使用 Obsidian `Vault` API 读取 Markdown 文件。
 - 文件不存在时使用默认内容兜底。
-- 不读取或展示 `raw/99-personal/` 具体内容，只显示状态数量或提醒。
+- 不读取或展示个人敏感目录的具体内容，只显示状态数量或提醒。
 
 ## 第四阶段：行动指南
 

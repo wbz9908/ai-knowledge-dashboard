@@ -1,56 +1,82 @@
 # AI Knowledge Dashboard
 
-AI Knowledge Dashboard is an Obsidian plugin for turning a personal AI knowledge base into an actionable dashboard.
+An Obsidian plugin that turns a personal AI knowledge base into an actionable dashboard.
 
-It is designed for a workflow where notes are not only stored, but also used to answer:
+This project started from my own vault: a Karpathy-inspired AI knowledge base where raw materials, inbox notes, compiled knowledge, projects, and action plans are continuously reorganized by humans and AI agents.
+
+The dashboard is designed to answer three questions every time Obsidian opens:
 
 - What should I do today?
-- Which project should I push forward?
-- Which knowledge areas need maintenance?
-- What can AI help me整理、复盘、检查 or generate next?
+- Which knowledge or project area needs attention?
+- What can AI help me organize, review, or generate next?
 
-The first version is built for my personal knowledge base, but the long-term goal is to make the plugin configurable enough for other Obsidian users.
+## Why This Exists
 
-## Current Status
+Most knowledge bases are good at storing information, but weak at turning knowledge into action.
 
-This project is in early scaffold stage.
+This plugin is an experiment in building a personal knowledge cockpit:
 
-Implemented:
+- collect raw material into an inbox
+- organize source notes into a stable learning system
+- compile durable knowledge into a wiki
+- surface knowledge health signals
+- generate practical action guides from current goals
 
-- Obsidian plugin scaffold with TypeScript.
-- Dedicated `AI Knowledge Dashboard` view.
-- Auto-open dashboard on Obsidian startup.
-- Coursue-inspired dashboard layout.
-- Static action guide cards.
-- Basic vault statistics using Obsidian `Vault` API.
-- Local install script for my notes vault.
+It is not meant to replace Obsidian notes. It is the entry point that helps decide where to go next.
 
-Known limitations:
+## Vault Model
 
-- Some note paths are still based on the previous vault structure.
-- The current notes vault has been reorganized to:
+The plugin now assumes a simple Karpathy-style vault layout by default:
 
 ```text
 raw/
-├── assets/
-├── inbox/
-└── sources/
+├── inbox/      # captured ideas, AI chats, web clips, drafts
+├── sources/    # source notes and long-term learning material
+└── assets/     # attachments, images, generated media
+
+wiki/           # compiled and structured knowledge pages
 ```
 
-- The plugin should be updated to detect configurable folders instead of assuming old paths such as `raw/00-inbox/`.
-- The action guide is currently static and should later be generated from dashboard config and notes metadata.
+The defaults can be changed in plugin settings.
+
+| Setting | Default | Purpose |
+|---|---|---|
+| Inbox folder | `raw/inbox` | Count and display collected items |
+| Sources folder | `raw/sources` | Count source notes and learning material |
+| Assets folder | `raw/assets` | Exclude attachment storage from note statistics |
+| Wiki folder | `wiki` | Count compiled knowledge pages |
+| Concepts folder | `wiki/concepts` | Count extracted concept pages |
+
+Backward compatibility:
+
+- If `raw/inbox` does not exist, the plugin falls back to `raw/00-inbox`.
+- Personal or private folders should only be shown as status signals. The plugin should not read private details by default.
 
 ## Dashboard Concept
 
-The dashboard follows a learning-platform style layout:
+The visual direction is inspired by learning-platform dashboards such as Coursue:
 
-- Left sidebar: Dashboard, Inbox, Action Guide, Projects, Knowledge Map, Health, Settings
-- Main area: search, focus banner, project progress, action guide
-- Right panel: knowledge statistics, health reminders, AI task queue
+- left navigation
+- central focus banner
+- progress cards
+- action guide cards
+- right-side statistics and AI task queue
 
-The most important module is **Action Guide**.
+Current layout:
 
-Action Guide is meant to convert knowledge into action:
+- **Dashboard**: overview of today, projects, and knowledge status
+- **Inbox**: collected material waiting to be processed
+- **Action Guide**: converts goals into concrete next steps
+- **Projects**: current project tracks such as AI knowledge base and `bz-lottery`
+- **Knowledge Map**: top-level areas of the vault
+- **Health**: stale notes, overgrown areas, and wiki/index status
+- **Settings**: folder paths and display options
+
+## Action Guide
+
+Action Guide is the core module.
+
+It turns knowledge into execution:
 
 ```text
 Goal -> Current Status -> Next Action -> Why -> Estimate -> Related Notes -> AI Help
@@ -68,30 +94,27 @@ Related Notes: 简历、bz-lottery、一人公司路线
 AI Help: 生成项目描述、提炼 STAR、检查简历表达
 ```
 
-## Data Model Plan
+The first version uses static action guide cards. Future versions will read goals, projects, and health reports from the vault.
 
-The plugin should not hard-code one vault layout forever.
+## Current Status
 
-Planned settings:
+Implemented:
 
-| Setting | Default for my vault | Purpose |
-|---|---|---|
-| Inbox folder | `raw/inbox` | Count and display collected items |
-| Sources folder | `raw/sources` | Count source notes and knowledge areas |
-| Assets folder | `raw/assets` | Ignore assets from note statistics |
-| Wiki folder | `wiki` | Read compiled knowledge pages |
-| Health report | `wiki/HEALTH.md` | Show knowledge base health |
-| Personal folder | configurable | Show status only, never read private details by default |
+- TypeScript Obsidian plugin scaffold
+- Dedicated `AI Knowledge Dashboard` view
+- Auto-open dashboard on startup
+- Coursue-inspired dashboard UI
+- Static action guide cards
+- Basic vault statistics through the Obsidian `Vault` API
+- Configurable folder settings for the reorganized vault
+- Local install script for my notes vault
 
-Next implementation step:
+Known limitations:
 
-1. Add settings for these folder paths.
-2. Replace hard-coded `raw/00-inbox` checks with configured paths.
-3. Add fallback detection:
-   - prefer `raw/inbox`
-   - fallback to `raw/00-inbox`
-4. Read `wiki/HEALTH.md` if present.
-5. Keep personal-sensitive folders opt-in and status-only.
+- Action guide cards are still static.
+- Health report parsing is not implemented yet.
+- Search UI is visual only in the current version.
+- Dashboard navigation buttons are not wired to separate views yet.
 
 ## Development
 
@@ -145,6 +168,37 @@ If the dashboard does not open automatically, run the command:
 Open AI Knowledge Dashboard
 ```
 
+## Roadmap
+
+### 0.1.x - Reliable Local Dashboard
+
+- Read real Inbox count from `raw/inbox`
+- Read real source note count from `raw/sources`
+- Keep folder paths configurable
+- Keep old `raw/00-inbox` fallback
+- Polish visual layout and install workflow
+
+### 0.2.x - Action Guide System
+
+- Move action guide data into configurable templates
+- Generate action cards from notes or project metadata
+- Link each action to related Obsidian notes
+- Add buttons for opening related notes
+
+### 0.3.x - Knowledge Maintenance
+
+- Parse `wiki/HEALTH.md`
+- Display stale notes and overgrown folders
+- Show wiki compile and search index status
+- Add commands for maintenance workflows
+
+### Future
+
+- Optional AI-generated daily suggestions
+- Local search index integration
+- Daily / weekly report generation
+- More polished responsive dashboard UI
+
 ## Repository
 
 GitHub:
@@ -154,33 +208,3 @@ https://github.com/wbz9908/ai-knowledge-dashboard
 ```
 
 License: MIT
-
-## Roadmap
-
-### 0.1.x - Make the local dashboard reliable
-
-- Fix path detection for the reorganized notes vault.
-- Add plugin settings for folder paths.
-- Show real Inbox count from `raw/inbox`.
-- Show real source note count from `raw/sources`.
-- Show health summary from `wiki/HEALTH.md`.
-
-### 0.2.x - Action guide system
-
-- Move action guide data into configurable templates.
-- Support action guide cards generated from notes.
-- Link each action to related Obsidian notes.
-- Add buttons for opening related notes.
-
-### 0.3.x - Knowledge maintenance
-
-- Read knowledge health reports.
-- Display stale notes and overgrown folders.
-- Add commands for maintenance workflows.
-
-### Future
-
-- Optional AI-generated daily suggestions.
-- Local search index integration.
-- Daily / weekly report generation.
-- More polished responsive dashboard UI.
