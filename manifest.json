@@ -1,0 +1,10 @@
+{
+  "id": "ai-knowledge-dashboard",
+  "name": "AI Knowledge Dashboard",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "A personal AI knowledge dashboard for Obsidian.",
+  "author": "wbz813",
+  "authorUrl": "https://github.com/wbz813",
+  "isDesktopOnly": false
+}
