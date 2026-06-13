@@ -121,14 +121,24 @@ var DashboardView = class extends import_obsidian.ItemView {
     brand.createDiv({ cls: "akd-logo", text: "AI" });
     brand.createEl("strong", { text: "Knowledge OS" });
     const nav = sidebar.createDiv({ cls: "akd-nav" });
-    renderNavItem(nav, "Dashboard", true);
-    renderNavItem(nav, "Inbox", false);
-    renderNavItem(nav, "Action Guide", false);
-    renderNavItem(nav, "Projects", false);
-    renderNavItem(nav, "Knowledge Map", false);
-    renderNavItem(nav, "Health", false);
+    const targets = [
+      { label: "Dashboard", active: true, kind: "dashboard" },
+      { label: "Inbox", kind: "folder", path: this.plugin.settings.inboxFolder },
+      { label: "Action Guide", kind: "section", sectionId: "action-guide" },
+      { label: "Projects", kind: "folder", path: "raw/sources/301-\u9879\u76EE" },
+      { label: "Knowledge Map", kind: "folder", path: this.plugin.settings.sourcesFolder },
+      { label: "Health", kind: "file", path: "wiki/HEALTH.md" }
+    ];
+    targets.forEach((target) => {
+      renderNavItem(nav, target, (selected) => {
+        void this.handleNavigation(selected);
+      });
+    });
     const footer = sidebar.createDiv({ cls: "akd-sidebar-footer" });
-    footer.createEl("span", { text: "Settings" });
+    const settingsButton = footer.createEl("button", { text: "Settings" });
+    settingsButton.addEventListener("click", () => {
+      void this.handleNavigation({ label: "Settings", kind: "settings" });
+    });
     footer.createEl("span", { text: "Local plugin scaffold" });
   }
   renderMain(parent, stats, guides) {
@@ -138,8 +148,14 @@ var DashboardView = class extends import_obsidian.ItemView {
       cls: "akd-search",
       attr: { placeholder: "Search your notes, projects, ideas..." }
     });
-    topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
-    topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
+    const inboxButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
+    inboxButton.addEventListener("click", () => {
+      void this.openFolderLanding(this.plugin.settings.inboxFolder);
+    });
+    const healthButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
+    healthButton.addEventListener("click", () => {
+      void this.openPath("wiki/HEALTH.md");
+    });
     const hero = main.createDiv({ cls: "akd-hero" });
     hero.createEl("span", { text: "PERSONAL AI KNOWLEDGE BASE" });
     hero.createEl("h1", {
@@ -148,14 +164,20 @@ var DashboardView = class extends import_obsidian.ItemView {
     hero.createEl("p", {
       text: "\u4ECA\u5929\u53EA\u770B\u4E09\u4EF6\u4E8B\uFF1A\u8BE5\u505A\u4EC0\u4E48\u3001\u4E3A\u4EC0\u4E48\u505A\u3001AI \u80FD\u5E2E\u6211\u7EF4\u62A4\u4EC0\u4E48\u3002"
     });
-    hero.createEl("button", { text: "Start Today" });
+    const startButton = hero.createEl("button", { text: "Start Today" });
+    startButton.addEventListener("click", () => {
+      this.scrollToSection("action-guide");
+    });
     const cards = main.createDiv({ cls: "akd-progress-cards" });
     renderProgressCard(cards, "AI \u77E5\u8BC6\u5E93", "62%", "\u81EA\u751F\u957F\u5DE5\u4F5C\u53F0");
     renderProgressCard(cards, "\u4E00\u4EBA\u516C\u53F8", "38%", "\u4E3B\u4E1A\u7A33\u4F4F + \u526F\u4E1A\u63A2\u7D22");
     renderProgressCard(cards, "bz-lottery", "54%", "AI \u9879\u76EE\u4F5C\u54C1\u96C6");
-    const sectionTitle = main.createDiv({ cls: "akd-section-title" });
+    const sectionTitle = main.createDiv({ cls: "akd-section-title", attr: { id: "action-guide" } });
     sectionTitle.createEl("h2", { text: "Action Guide" });
-    sectionTitle.createEl("a", { text: "See all" });
+    const seeAll = sectionTitle.createEl("a", { text: "See all" });
+    seeAll.addEventListener("click", () => {
+      this.scrollToSection("action-guide");
+    });
     const guideGrid = main.createDiv({ cls: "akd-guide-grid" });
     guides.slice(0, this.plugin.settings.actionLimit).forEach((guide) => {
       renderActionGuide(guideGrid, guide);
@@ -183,12 +205,80 @@ var DashboardView = class extends import_obsidian.ItemView {
     renderMiniStat(statsGrid, String(stats.inboxNotes), "Inbox");
     const mentor = aside.createDiv({ cls: "akd-mentor-card" });
     mentor.createEl("h3", { text: "AI Task Queue" });
+    const taskTargets = {
+      "\u6574\u7406 Inbox": () => void this.openFolderLanding(this.plugin.settings.inboxFolder),
+      "\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE": () => this.scrollToSection("action-guide"),
+      "\u68C0\u67E5\u5065\u5EB7\u5EA6": () => void this.openPath("wiki/HEALTH.md"),
+      "\u7F16\u8BD1 Wiki": () => new import_obsidian.Notice("Wiki compile should still be run by your AI workflow for now.")
+    };
     ["\u6574\u7406 Inbox", "\u751F\u6210\u4ECA\u65E5\u5EFA\u8BAE", "\u68C0\u67E5\u5065\u5EB7\u5EA6", "\u7F16\u8BD1 Wiki"].forEach((task) => {
       const item = mentor.createDiv({ cls: "akd-mentor-item" });
       item.createDiv({ cls: "akd-avatar", text: "AI" });
       item.createEl("span", { text: task });
-      item.createEl("button", { text: "Run" });
+      const runButton = item.createEl("button", { text: "Run" });
+      runButton.addEventListener("click", taskTargets[task]);
     });
+  }
+  async handleNavigation(target) {
+    if (target.kind === "dashboard") {
+      this.containerEl.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (target.kind === "section" && target.sectionId) {
+      this.scrollToSection(target.sectionId);
+      return;
+    }
+    if (target.kind === "settings") {
+      new import_obsidian.Notice("Open Settings -> Community plugins -> AI Knowledge Dashboard.");
+      return;
+    }
+    if (target.kind === "folder" && target.path) {
+      await this.openFolderLanding(target.path);
+      return;
+    }
+    if (target.kind === "file" && target.path) {
+      await this.openPath(target.path);
+    }
+  }
+  scrollToSection(sectionId) {
+    const section = this.containerEl.querySelector(`#${sectionId}`);
+    if (!section) {
+      new import_obsidian.Notice(`Section not found: ${sectionId}`);
+      return;
+    }
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  async openFolderLanding(folderPath) {
+    const normalized = normalizePathSetting(folderPath, folderPath);
+    const folder = this.app.vault.getAbstractFileByPath(normalized);
+    if (!(folder instanceof import_obsidian.TFolder)) {
+      new import_obsidian.Notice(`Folder not found: ${normalized}`);
+      return;
+    }
+    const landingFile = findFolderLandingFile(folder);
+    if (!landingFile) {
+      new import_obsidian.Notice(`No markdown file found in ${normalized}`);
+      return;
+    }
+    await this.openFile(landingFile);
+  }
+  async openPath(path) {
+    const normalized = normalizePathSetting(path, path);
+    const target = this.app.vault.getAbstractFileByPath(normalized);
+    if (target instanceof import_obsidian.TFile) {
+      await this.openFile(target);
+      return;
+    }
+    if (target instanceof import_obsidian.TFolder) {
+      await this.openFolderLanding(normalized);
+      return;
+    }
+    new import_obsidian.Notice(`Path not found: ${normalized}`);
+  }
+  async openFile(file) {
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file);
+    this.app.workspace.revealLeaf(leaf);
   }
 };
 var DashboardSettingTab = class extends import_obsidian.PluginSettingTab {
@@ -306,11 +396,31 @@ function buildActionGuides() {
     }
   ];
 }
-function renderNavItem(parent, label, active) {
-  parent.createEl("button", {
-    cls: active ? "akd-nav-item is-active" : "akd-nav-item",
-    text: label
+function findFolderLandingFile(folder) {
+  const directFiles = folder.children.filter((child) => child instanceof import_obsidian.TFile && child.extension === "md");
+  const preferred = directFiles.find((file) => /^(README|index|00-|01-)/i.test(file.basename));
+  if (preferred) {
+    return preferred;
+  }
+  if (directFiles[0]) {
+    return directFiles[0];
+  }
+  for (const child of folder.children) {
+    if (child instanceof import_obsidian.TFolder) {
+      const nested = findFolderLandingFile(child);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+  return null;
+}
+function renderNavItem(parent, target, onClick) {
+  const button = parent.createEl("button", {
+    cls: target.active ? "akd-nav-item is-active" : "akd-nav-item",
+    text: target.label
   });
+  button.addEventListener("click", () => onClick(target));
 }
 function renderProgressCard(parent, title, progress, subtitle) {
   const card = parent.createDiv({ cls: "akd-progress-card" });

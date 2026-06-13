@@ -1,10 +1,12 @@
 import {
   App,
   ItemView,
+  Notice,
   Plugin,
   PluginSettingTab,
   Setting,
   TFile,
+  TFolder,
   WorkspaceLeaf
 } from "obsidian";
 
@@ -48,6 +50,14 @@ interface ActionGuide {
   estimate: string;
   relatedNotes: string[];
   aiHelp: string[];
+}
+
+interface NavigationTarget {
+  label: string;
+  active?: boolean;
+  kind: "dashboard" | "folder" | "file" | "section" | "settings";
+  path?: string;
+  sectionId?: string;
 }
 
 export default class AiKnowledgeDashboardPlugin extends Plugin {
@@ -157,15 +167,25 @@ class DashboardView extends ItemView {
     brand.createEl("strong", { text: "Knowledge OS" });
 
     const nav = sidebar.createDiv({ cls: "akd-nav" });
-    renderNavItem(nav, "Dashboard", true);
-    renderNavItem(nav, "Inbox", false);
-    renderNavItem(nav, "Action Guide", false);
-    renderNavItem(nav, "Projects", false);
-    renderNavItem(nav, "Knowledge Map", false);
-    renderNavItem(nav, "Health", false);
+    const targets: NavigationTarget[] = [
+      { label: "Dashboard", active: true, kind: "dashboard" },
+      { label: "Inbox", kind: "folder", path: this.plugin.settings.inboxFolder },
+      { label: "Action Guide", kind: "section", sectionId: "action-guide" },
+      { label: "Projects", kind: "folder", path: "raw/sources/301-项目" },
+      { label: "Knowledge Map", kind: "folder", path: this.plugin.settings.sourcesFolder },
+      { label: "Health", kind: "file", path: "wiki/HEALTH.md" }
+    ];
+    targets.forEach((target) => {
+      renderNavItem(nav, target, (selected) => {
+        void this.handleNavigation(selected);
+      });
+    });
 
     const footer = sidebar.createDiv({ cls: "akd-sidebar-footer" });
-    footer.createEl("span", { text: "Settings" });
+    const settingsButton = footer.createEl("button", { text: "Settings" });
+    settingsButton.addEventListener("click", () => {
+      void this.handleNavigation({ label: "Settings", kind: "settings" });
+    });
     footer.createEl("span", { text: "Local plugin scaffold" });
   }
 
@@ -177,8 +197,14 @@ class DashboardView extends ItemView {
       cls: "akd-search",
       attr: { placeholder: "Search your notes, projects, ideas..." }
     });
-    topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
-    topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
+    const inboxButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Inbox" });
+    inboxButton.addEventListener("click", () => {
+      void this.openFolderLanding(this.plugin.settings.inboxFolder);
+    });
+    const healthButton = topbar.createEl("button", { cls: "akd-icon-button", text: "Health" });
+    healthButton.addEventListener("click", () => {
+      void this.openPath("wiki/HEALTH.md");
+    });
 
     const hero = main.createDiv({ cls: "akd-hero" });
     hero.createEl("span", { text: "PERSONAL AI KNOWLEDGE BASE" });
@@ -188,16 +214,22 @@ class DashboardView extends ItemView {
     hero.createEl("p", {
       text: "今天只看三件事：该做什么、为什么做、AI 能帮我维护什么。"
     });
-    hero.createEl("button", { text: "Start Today" });
+    const startButton = hero.createEl("button", { text: "Start Today" });
+    startButton.addEventListener("click", () => {
+      this.scrollToSection("action-guide");
+    });
 
     const cards = main.createDiv({ cls: "akd-progress-cards" });
     renderProgressCard(cards, "AI 知识库", "62%", "自生长工作台");
     renderProgressCard(cards, "一人公司", "38%", "主业稳住 + 副业探索");
     renderProgressCard(cards, "bz-lottery", "54%", "AI 项目作品集");
 
-    const sectionTitle = main.createDiv({ cls: "akd-section-title" });
+    const sectionTitle = main.createDiv({ cls: "akd-section-title", attr: { id: "action-guide" } });
     sectionTitle.createEl("h2", { text: "Action Guide" });
-    sectionTitle.createEl("a", { text: "See all" });
+    const seeAll = sectionTitle.createEl("a", { text: "See all" });
+    seeAll.addEventListener("click", () => {
+      this.scrollToSection("action-guide");
+    });
 
     const guideGrid = main.createDiv({ cls: "akd-guide-grid" });
     guides.slice(0, this.plugin.settings.actionLimit).forEach((guide) => {
@@ -231,12 +263,96 @@ class DashboardView extends ItemView {
 
     const mentor = aside.createDiv({ cls: "akd-mentor-card" });
     mentor.createEl("h3", { text: "AI Task Queue" });
+    const taskTargets: Record<string, () => void> = {
+      "整理 Inbox": () => void this.openFolderLanding(this.plugin.settings.inboxFolder),
+      "生成今日建议": () => this.scrollToSection("action-guide"),
+      "检查健康度": () => void this.openPath("wiki/HEALTH.md"),
+      "编译 Wiki": () => new Notice("Wiki compile should still be run by your AI workflow for now.")
+    };
+
     ["整理 Inbox", "生成今日建议", "检查健康度", "编译 Wiki"].forEach((task) => {
       const item = mentor.createDiv({ cls: "akd-mentor-item" });
       item.createDiv({ cls: "akd-avatar", text: "AI" });
       item.createEl("span", { text: task });
-      item.createEl("button", { text: "Run" });
+      const runButton = item.createEl("button", { text: "Run" });
+      runButton.addEventListener("click", taskTargets[task]);
     });
+  }
+
+  private async handleNavigation(target: NavigationTarget): Promise<void> {
+    if (target.kind === "dashboard") {
+      this.containerEl.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+
+    if (target.kind === "section" && target.sectionId) {
+      this.scrollToSection(target.sectionId);
+      return;
+    }
+
+    if (target.kind === "settings") {
+      new Notice("Open Settings -> Community plugins -> AI Knowledge Dashboard.");
+      return;
+    }
+
+    if (target.kind === "folder" && target.path) {
+      await this.openFolderLanding(target.path);
+      return;
+    }
+
+    if (target.kind === "file" && target.path) {
+      await this.openPath(target.path);
+    }
+  }
+
+  private scrollToSection(sectionId: string): void {
+    const section = this.containerEl.querySelector(`#${sectionId}`);
+    if (!section) {
+      new Notice(`Section not found: ${sectionId}`);
+      return;
+    }
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  private async openFolderLanding(folderPath: string): Promise<void> {
+    const normalized = normalizePathSetting(folderPath, folderPath);
+    const folder = this.app.vault.getAbstractFileByPath(normalized);
+
+    if (!(folder instanceof TFolder)) {
+      new Notice(`Folder not found: ${normalized}`);
+      return;
+    }
+
+    const landingFile = findFolderLandingFile(folder);
+    if (!landingFile) {
+      new Notice(`No markdown file found in ${normalized}`);
+      return;
+    }
+
+    await this.openFile(landingFile);
+  }
+
+  private async openPath(path: string): Promise<void> {
+    const normalized = normalizePathSetting(path, path);
+    const target = this.app.vault.getAbstractFileByPath(normalized);
+
+    if (target instanceof TFile) {
+      await this.openFile(target);
+      return;
+    }
+
+    if (target instanceof TFolder) {
+      await this.openFolderLanding(normalized);
+      return;
+    }
+
+    new Notice(`Path not found: ${normalized}`);
+  }
+
+  private async openFile(file: TFile): Promise<void> {
+    const leaf = this.app.workspace.getLeaf("tab");
+    await leaf.openFile(file);
+    this.app.workspace.revealLeaf(leaf);
   }
 }
 
@@ -406,11 +522,36 @@ function buildActionGuides(): ActionGuide[] {
   ];
 }
 
-function renderNavItem(parent: HTMLElement, label: string, active: boolean): void {
-  parent.createEl("button", {
-    cls: active ? "akd-nav-item is-active" : "akd-nav-item",
-    text: label
+function findFolderLandingFile(folder: TFolder): TFile | null {
+  const directFiles = folder.children.filter((child): child is TFile => child instanceof TFile && child.extension === "md");
+  const preferred = directFiles.find((file) => /^(README|index|00-|01-)/i.test(file.basename));
+
+  if (preferred) {
+    return preferred;
+  }
+
+  if (directFiles[0]) {
+    return directFiles[0];
+  }
+
+  for (const child of folder.children) {
+    if (child instanceof TFolder) {
+      const nested = findFolderLandingFile(child);
+      if (nested) {
+        return nested;
+      }
+    }
+  }
+
+  return null;
+}
+
+function renderNavItem(parent: HTMLElement, target: NavigationTarget, onClick: (target: NavigationTarget) => void): void {
+  const button = parent.createEl("button", {
+    cls: target.active ? "akd-nav-item is-active" : "akd-nav-item",
+    text: target.label
   });
+  button.addEventListener("click", () => onClick(target));
 }
 
 function renderProgressCard(parent: HTMLElement, title: string, progress: string, subtitle: string): void {

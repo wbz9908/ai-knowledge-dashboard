@@ -37,6 +37,32 @@ raw/
 wiki/           # compiled and structured knowledge pages
 ```
 
+Inside `raw/sources`, large areas can use three-digit numeric prefixes:
+
+```text
+raw/sources/
+├── 101-计算机基础
+├── 102-编程语言
+├── 103-框架
+├── 104-数据库
+├── 105-基础服务
+├── 106-各类工具
+├── 201-AI
+├── 301-项目
+├── 701-面试
+├── 801-归档
+└── 901-备忘录
+```
+
+This works better than a flat `01`, `02`, `03` scheme for a growing vault:
+
+- the hundred digit represents a broad category
+- the remaining digits leave room for future subcategories
+- related topics stay visually grouped
+- AI agents can infer the category from the path before reading file content
+
+For this plugin, the important part is that these folders live under the configured Sources folder. The dashboard should not hard-code every numbered folder; it should discover and summarize them over time.
+
 The defaults can be changed in plugin settings.
 
 | Setting | Default | Purpose |
@@ -71,6 +97,13 @@ Current layout:
 - **Knowledge Map**: top-level areas of the vault
 - **Health**: stale notes, overgrown areas, and wiki/index status
 - **Settings**: folder paths and display options
+
+Navigation status:
+
+- Sidebar and top buttons now open the configured folder landing page when possible.
+- Folder buttons prefer `README.md`, `index.md`, `00-*`, `01-*`, then the first Markdown file.
+- Section buttons, such as Action Guide, scroll within the dashboard.
+- Workflow buttons are still lightweight shortcuts. Long-running AI workflows are intentionally not executed directly by the plugin yet.
 
 ## Action Guide
 
